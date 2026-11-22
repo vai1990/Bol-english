@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Bol English Kids</string>
+    <string name="tagline">मजेत शिका इंग्रजी आणि बना स्टार!</string>
+    <string name="practice_speech">उच्चार सराव</string>
+    <string name="play_games">खेळ खेळा</string>
+    <string name="word_vault">शब्दसंग्रह</string>
+    <string name="my_trophies">माझी बक्षिसे</string>
+    <string name="listen_word">ऐका</string>
+    <string name="speak_now">आता बोला</string>
+    <string name="listening">ऐकत आहे… बोला!</string>
+    <string name="mic_permission_needed">उच्चार तपासण्यासाठी मायक्रोफोन परवानगी आवश्यक आहे.</string>
+    <string name="grant_permission">परवानगी द्या</string>
+</resources>

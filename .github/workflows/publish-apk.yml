@@ -1,0 +1,113 @@
+name: Publish Prebuilt Debug APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "apk-distribution/app-debug.apk"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-apk-release:
+    name: Validate & Publish Prebuilt Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate prebuilt APK and SHA-256 checksum
+        id: validate_apk
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK_PATH="apk-distribution/app-debug.apk"
+          SHA_PATH="apk-distribution/app-debug.apk.sha256"
+
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::Missing required APK file: $APK_PATH"
+            exit 1
+          fi
+
+          if [ ! -s "$APK_PATH" ]; then
+            echo "::error::APK file is empty: $APK_PATH"
+            exit 1
+          fi
+
+          if [ ! -f "$SHA_PATH" ]; then
+            echo "::error::Missing required checksum file: $SHA_PATH"
+            exit 1
+          fi
+
+          EXPECTED_SHA="$(awk '{print $1}' "$SHA_PATH")"
+          ACTUAL_SHA="$(sha256sum "$APK_PATH" | awk '{print $1}')"
+
+          if [ -z "$EXPECTED_SHA" ] || [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            echo "::error::SHA-256 checksum mismatch for $APK_PATH"
+            echo "Expected: $EXPECTED_SHA"
+            echo "Actual:   $ACTUAL_SHA"
+            exit 1
+          fi
+
+          (cd apk-distribution && sha256sum -c app-debug.apk.sha256)
+
+          unzip -tq "$APK_PATH"
+
+          APK_BYTES="$(stat -c%s "$APK_PATH")"
+          APK_HUMAN="$(numfmt --to=iec-i --suffix=B "$APK_BYTES" 2>/dev/null || du -h "$APK_PATH" | awk '{print $1}')"
+
+          echo "sha256=$ACTUAL_SHA" >> "$GITHUB_OUTPUT"
+          echo "apk_size=${APK_HUMAN} (${APK_BYTES} bytes)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release and upload APK
+        id: create_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          RELEASE_TAG="debug-apk-build-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          APK_PATH="apk-distribution/app-debug.apk"
+          APK_SHA="${{ steps.validate_apk.outputs.sha256 }}"
+          APK_SIZE="${{ steps.validate_apk.outputs.apk_size }}"
+
+          RELEASE_NOTES=$(cat <<EOF
+          Prebuilt Android debug APK compiled inside Google AI Studio.
+
+          - **Asset:** \`app-debug.apk\`
+          - **Size:** ${APK_SIZE}
+          - **SHA-256:** \`${APK_SHA}\`
+          EOF
+          )
+
+          gh release create "$RELEASE_TAG" \
+            "$APK_PATH" \
+            --title "Debug APK Build ${GITHUB_RUN_NUMBER} (Attempt ${GITHUB_RUN_ATTEMPT})" \
+            --notes "$RELEASE_NOTES" \
+            --latest
+
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "release_url=https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "download_url=https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/app-debug.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Write publication summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Android Debug APK Release Published"
+            echo ""
+            echo "- **Release Tag:** \`${{ steps.create_release.outputs.release_tag }}\`"
+            echo "- **APK File:** \`app-debug.apk\`"
+            echo "- **APK Size:** ${{ steps.validate_apk.outputs.apk_size }}"
+            echo "- **SHA-256:** \`${{ steps.validate_apk.outputs.sha256 }}\`"
+            echo "- **GitHub Release Page:** ${{ steps.create_release.outputs.release_url }}"
+            echo "- **Direct Latest APK Download URL:** ${{ steps.create_release.outputs.download_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"

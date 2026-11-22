@@ -1,0 +1,6 @@
+{
+  "name": "Bol English Kids",
+  "description": "लहान मुलांसाठी खेळातून इंग्रजी शब्दसंग्रह आणि व्हॉइस रेकग्निशन उच्चार सराव ॲप (Kids English Learning & Speech Game)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
