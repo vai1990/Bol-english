@@ -17,4 +17,8 @@
     <string name="check_for_updates">अपडेट तपासा (Check Updates)</string>
     <string name="checking_updates">नवीन रिलीझ तपासत आहे…</string>
     <string name="app_up_to_date">तुमचे ॲप अपडेटेड आहे!</string>
+    <string name="ai_teacher_title">मीरा AI टीचर</string>
+    <string name="ai_teacher_name">मीरा टीचर (AI Teacher)</string>
+    <string name="teacher_thinking">मीरा टीचर विचार करत आहे… ✨</string>
+    <string name="teacher_input_hint">किंवा येथे टाईप करा…</string>
 </resources>

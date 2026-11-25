@@ -16,10 +16,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ai.configureAppCheck
 import com.example.model.ScreenRoute
 import com.example.ui.components.AppBottomNav
 import com.example.ui.components.AppTopBar
 import com.example.ui.components.UpdateReleaseDialog
+import com.example.ui.screens.AiTeacherScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.ListenQuizScreen
 import com.example.ui.screens.PictureQuizScreen
@@ -34,6 +36,10 @@ import com.example.viewmodel.MainViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // STEP 1: Configure Firebase App Check with launch intent before any UI, ViewModel, or Firebase operations
+        configureAppCheck(this, intent)
+
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
@@ -82,6 +88,7 @@ fun KidsEnglishApp(
             Crossfade(targetState = currentScreen, label = "screen_crossfade") { screen ->
                 when (screen) {
                     ScreenRoute.HOME -> HomeScreen(viewModel = viewModel)
+                    ScreenRoute.AI_TEACHER -> AiTeacherScreen(viewModel = viewModel)
                     ScreenRoute.SPEAK_PRACTICE -> SpeakPracticeScreen(viewModel = viewModel)
                     ScreenRoute.PICTURE_QUIZ -> PictureQuizScreen(viewModel = viewModel)
                     ScreenRoute.LISTEN_FIND -> ListenQuizScreen(viewModel = viewModel)

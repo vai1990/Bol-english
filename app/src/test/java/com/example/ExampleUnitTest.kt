@@ -95,4 +95,16 @@ class ExampleUnitTest {
         assertTrue(AppUpdateManager.isTrustedGitHubUrl("https://github.com/vai1990/Bol-english/releases/latest/download/app-debug.apk"))
         assertFalse(AppUpdateManager.isTrustedGitHubUrl("https://evil.example.com/app-debug.apk"))
     }
+
+    @Test
+    fun `ai teacher topics and bilingual input languages are configured`() {
+        assertTrue(com.example.ai.TeacherTopic.values().size >= 5)
+        com.example.ai.TeacherTopic.values().forEach { topic ->
+            assertTrue(topic.marathiTitle.isNotBlank())
+            assertTrue(topic.starterPrompt.isNotBlank())
+        }
+        val locales = com.example.ai.SpeechInputLanguage.values().map { it.localeTag }
+        assertTrue(locales.contains("en-IN"))
+        assertTrue(locales.contains("mr-IN"))
+    }
 }

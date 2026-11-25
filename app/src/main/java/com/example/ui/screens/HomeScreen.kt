@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,10 +42,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.VocabularyRepository
 import com.example.model.ScreenRoute
 import com.example.model.WordCategory
@@ -203,6 +208,105 @@ fun HomeScreen(
                             Text(
                                 text = userProfile.selectedAvatar.emoji,
                                 fontSize = 38.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Featured Meera AI Teacher Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.navigateTo(ScreenRoute.AI_TEACHER) }
+                    .testTag("home_ai_teacher_card"),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color(0xFF7B1FA2), Color(0xFF1E88E5))
+                            )
+                        )
+                        .padding(18.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.img_ai_teacher_1795577890226),
+                                contentDescription = "मीरा AI टीचर",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .border(2.5.dp, Color(0xFFFFEB3B), CircleShape)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFFFEB3B))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "✨ LIVE AI TEACHER",
+                                        fontFamily = FredokaFontFamily,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF4A148C)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "मीरा टीचरशी बोला!",
+                                    fontFamily = BalooFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "बोलून इंग्रजी शिका, प्रश्न विचारा आणि संवाद साधा!",
+                                    fontFamily = BalooFontFamily,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFF3E5F5),
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { viewModel.navigateTo(ScreenRoute.AI_TEACHER) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("btn_open_ai_teacher"),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = Color(0xFF6A1B9A)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "टीचरशी संवाद सुरू करा (Talk to AI Teacher)",
+                                fontFamily = BalooFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
                             )
                         }
                     }
@@ -376,6 +480,19 @@ fun HomeScreen(
                     bgBrush = Brush.linearGradient(listOf(Color(0xFFF3E5F5), Color(0xFFE1BEE7))),
                     onClick = { viewModel.navigateTo(ScreenRoute.WORD_BUILDER) },
                     testTag = "mode_word_builder"
+                )
+
+                // Card 5: Word Vault Dictionary
+                PlayModeCard(
+                    titleMr = "५. शब्दसंग्रह (Word Vault)",
+                    titleEn = "Searchable Dictionary",
+                    desc = "सर्व इंग्रजी शब्द, मराठी अर्थ आणि उच्चार एकाच ठिकाणी पहा!",
+                    emoji = "📚",
+                    badgeText = "शब्दकोश",
+                    badgeColor = OrangeFun,
+                    bgBrush = Brush.linearGradient(listOf(Color(0xFFFFF3E0), Color(0xFFFFE0B2))),
+                    onClick = { viewModel.navigateTo(ScreenRoute.WORD_VAULT) },
+                    testTag = "mode_word_vault"
                 )
             }
         }

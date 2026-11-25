@@ -1,8 +1,14 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.ai.AiTeacherRepository
+import com.example.ai.AiTeacherUiState
+import com.example.ai.SpeechInputLanguage
+import com.example.ai.TeacherChatMessage
+import com.example.ai.TeacherTopic
 import com.example.data.VocabularyRepository
 import com.example.model.AvailableAvatars
 import com.example.model.KidAvatar
@@ -17,6 +23,8 @@ import com.example.speech.SpeechManager
 import com.example.speech.SpeechState
 import com.example.update.AppUpdateManager
 import com.example.update.UpdateUiState
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,6 +40,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val speechManager = SpeechManager(application.applicationContext)
     private val appUpdateManager = AppUpdateManager(application.applicationContext)
+    private val aiTeacherRepository = AiTeacherRepository()
 
     // Auto-update state
     private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
@@ -39,6 +48,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val currentAppVersion: String
         get() = appUpdateManager.getCurrentVersionName()
+
+    // AI Teacher Conversation State
+    private val _teacherMessages = MutableStateFlow<List<TeacherChatMessage>>(emptyList())
+    val teacherMessages: StateFlow<List<TeacherChatMessage>> = _teacherMessages.asStateFlow()
+
+    private val _aiTeacherUiState = MutableStateFlow<AiTeacherUiState>(AiTeacherUiState.Idle)
+    val aiTeacherUiState: StateFlow<AiTeacherUiState> = _aiTeacherUiState.asStateFlow()
+
+    private val _isTeacherSpeaking = MutableStateFlow(false)
+    val isTeacherSpeaking: StateFlow<Boolean> = _isTeacherSpeaking.asStateFlow()
+
+    private val _teacherAutoSpeak = MutableStateFlow(true)
+    val teacherAutoSpeak: StateFlow<Boolean> = _teacherAutoSpeak.asStateFlow()
+
+    private val _teacherSlowVoice = MutableStateFlow(false)
+    val teacherSlowVoice: StateFlow<Boolean> = _teacherSlowVoice.asStateFlow()
+
+    private val _teacherInputLanguage = MutableStateFlow(SpeechInputLanguage.ENGLISH_IN)
+    val teacherInputLanguage: StateFlow<SpeechInputLanguage> = _teacherInputLanguage.asStateFlow()
+
+    private val _teacherSpeechState = MutableStateFlow(SpeechState.IDLE)
+    val teacherSpeechState: StateFlow<SpeechState> = _teacherSpeechState.asStateFlow()
+
+    private val _teacherLiveTranscript = MutableStateFlow("")
+    val teacherLiveTranscript: StateFlow<String> = _teacherLiveTranscript.asStateFlow()
+
+    private val _teacherMicError = MutableStateFlow<String?>(null)
+    val teacherMicError: StateFlow<String?> = _teacherMicError.asStateFlow()
+
+    private var lastChildPromptForRetry: String? = null
+    private var hasGreetedInTeacherScreen: Boolean = false
 
     // Navigation
     private val _currentScreen = MutableStateFlow(ScreenRoute.HOME)
@@ -126,7 +166,167 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         setupWordBuilder()
+        seedTeacherWelcomeMessage()
         checkForAppUpdate(isManual = false)
+    }
+
+    private fun seedTeacherWelcomeMessage() {
+        val kidName = _userProfile.value.kidName
+        _teacherMessages.value = listOf(
+            TeacherChatMessage(
+                id = "welcome_${System.currentTimeMillis()}",
+                isFromTeacher = true,
+                englishText = "Hello! I am Meera Teacher. Let us learn English together! Press the microphone button and say Hello to me!",
+                marathiText = "नमस्ते $kidName! मी मीरा टीचर आहे. आज आपण बोलून मजेत इंग्रजी शिकूया. खालील मायक्रोफोन दाबून मला 'Hello' म्हण किंवा मराठीत काहीही विचार!",
+                practicePhrase = "Hello Meera Teacher!",
+                quickReplies = listOf(
+                    "Hello Meera Teacher!",
+                    "Teach me an animal word",
+                    "Tell me a short story"
+                )
+            )
+        )
+    }
+
+    fun sendMessageToTeacher(rawText: String) {
+        val message = rawText.trim()
+        if (message.isEmpty() || _aiTeacherUiState.value is AiTeacherUiState.Thinking) return
+
+        speechManager.stopListening()
+        speechManager.stopSpeaking()
+        _teacherSpeechState.value = SpeechState.IDLE
+        _teacherLiveTranscript.value = ""
+        _teacherMicError.value = null
+        lastChildPromptForRetry = message
+
+        val childMsg = TeacherChatMessage(
+            id = "child_${System.currentTimeMillis()}",
+            isFromTeacher = false,
+            englishText = message
+        )
+        _teacherMessages.value = _teacherMessages.value + childMsg
+        requestTeacherReply(message)
+    }
+
+    fun retryLastTeacherMessage() {
+        val retryText = lastChildPromptForRetry ?: return
+        if (_aiTeacherUiState.value is AiTeacherUiState.Thinking) return
+        requestTeacherReply(retryText)
+    }
+
+    private fun requestTeacherReply(prompt: String) {
+        viewModelScope.launch {
+            _aiTeacherUiState.value = AiTeacherUiState.Thinking
+            try {
+                val reply = aiTeacherRepository.sendChildMessage(
+                    userMessage = prompt,
+                    kidName = _userProfile.value.kidName
+                )
+                val teacherMsg = TeacherChatMessage(
+                    id = "teacher_${System.currentTimeMillis()}",
+                    isFromTeacher = true,
+                    englishText = reply.englishSpeech,
+                    marathiText = reply.marathiSupport,
+                    practicePhrase = reply.practicePhrase,
+                    quickReplies = reply.quickReplies
+                )
+                _teacherMessages.value = _teacherMessages.value + teacherMsg
+                _aiTeacherUiState.value = AiTeacherUiState.Ready
+                addStars(1)
+
+                if (_teacherAutoSpeak.value) {
+                    replayTeacherMessage(teacherMsg, isSlow = _teacherSlowVoice.value)
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e("MainViewModel", "AI Teacher timed out", e)
+                _aiTeacherUiState.value = AiTeacherUiState.Error(
+                    "उत्तर मिळायला वेळ लागला (60s timeout). कृपया पुन्हा प्रयत्न करा."
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "AI Teacher call failed", e)
+                _aiTeacherUiState.value = AiTeacherUiState.Error(
+                    e.localizedMessage ?: "AI टीचरशी संपर्क होऊ शकला नाही. कृपया पुन्हा प्रयत्न करा."
+                )
+            }
+        }
+    }
+
+    fun selectTeacherTopic(topic: TeacherTopic) {
+        sendMessageToTeacher(topic.starterPrompt)
+    }
+
+    fun toggleTeacherVoiceInput() {
+        if (_teacherSpeechState.value == SpeechState.LISTENING) {
+            speechManager.stopListening()
+            _teacherSpeechState.value = SpeechState.IDLE
+            _teacherLiveTranscript.value = ""
+            return
+        }
+
+        _teacherMicError.value = null
+        _teacherLiveTranscript.value = ""
+        speechManager.startConversationalListening(
+            languageTag = _teacherInputLanguage.value.localeTag,
+            onRmsChanged = { rms -> _rmsDb.value = rms },
+            onStateChange = { state -> _teacherSpeechState.value = state },
+            onPartialText = { partial -> _teacherLiveTranscript.value = partial },
+            onFinalText = { spoken ->
+                _teacherLiveTranscript.value = ""
+                sendMessageToTeacher(spoken)
+            },
+            onError = { err ->
+                _teacherLiveTranscript.value = ""
+                _teacherMicError.value = err
+            }
+        )
+    }
+
+    fun replayTeacherMessage(msg: TeacherChatMessage, isSlow: Boolean) {
+        speechManager.speakTeacherResponse(
+            englishText = msg.englishText,
+            marathiText = msg.marathiText,
+            isSlow = isSlow,
+            speakMarathiAlso = true,
+            onSpeakingChanged = { speaking -> _isTeacherSpeaking.value = speaking }
+        )
+    }
+
+    fun stopTeacherSpeaking() {
+        speechManager.stopSpeaking()
+        _isTeacherSpeaking.value = false
+    }
+
+    fun toggleTeacherAutoSpeak() {
+        val next = !_teacherAutoSpeak.value
+        _teacherAutoSpeak.value = next
+        if (!next) {
+            stopTeacherSpeaking()
+        }
+    }
+
+    fun toggleTeacherSlowVoice() {
+        _teacherSlowVoice.value = !_teacherSlowVoice.value
+    }
+
+    fun setTeacherInputLanguage(language: SpeechInputLanguage) {
+        _teacherInputLanguage.value = language
+    }
+
+    fun resetTeacherConversation() {
+        speechManager.stopListening()
+        stopTeacherSpeaking()
+        _teacherSpeechState.value = SpeechState.IDLE
+        _teacherLiveTranscript.value = ""
+        _teacherMicError.value = null
+        _aiTeacherUiState.value = AiTeacherUiState.Idle
+        aiTeacherRepository.startNewSession(_userProfile.value.kidName)
+        seedTeacherWelcomeMessage()
+        val firstMsg = _teacherMessages.value.firstOrNull()
+        if (firstMsg != null && _teacherAutoSpeak.value) {
+            replayTeacherMessage(firstMsg, isSlow = _teacherSlowVoice.value)
+        }
     }
 
     fun checkForAppUpdate(isManual: Boolean = true) {
@@ -174,13 +374,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _currentScreen.value = route
         _lastSpeechResult.value = null
         _errorMessage.value = null
+        _teacherMicError.value = null
+        _teacherLiveTranscript.value = ""
         _showConfetti.value = false
         speechManager.stopListening()
+        _teacherSpeechState.value = SpeechState.IDLE
+        if (route != ScreenRoute.AI_TEACHER) {
+            stopTeacherSpeaking()
+        }
 
         if (route == ScreenRoute.PICTURE_QUIZ && _selectedQuizOption.value != null) {
             nextQuizQuestion()
         } else if (route == ScreenRoute.LISTEN_FIND) {
             speakCurrentListenWord()
+        } else if (route == ScreenRoute.AI_TEACHER && !hasGreetedInTeacherScreen) {
+            hasGreetedInTeacherScreen = true
+            val welcome = _teacherMessages.value.firstOrNull()
+            if (welcome != null && _teacherAutoSpeak.value) {
+                replayTeacherMessage(welcome, isSlow = _teacherSlowVoice.value)
+            }
         }
     }
 

@@ -3,6 +3,8 @@ package com.example.speech
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -22,17 +24,35 @@ enum class SpeechState {
     ERROR
 }
 
+private enum class ListenMode {
+    WORD_EVALUATION,
+    CONVERSATION
+}
+
 class SpeechManager(private val context: Context) : RecognitionListener {
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var textToSpeech: TextToSpeech? = null
     private var isTtsReady = false
+    private var isMarathiTtsSupported = false
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private var activeListenMode: ListenMode = ListenMode.WORD_EVALUATION
     private var currentTargetWord: String = ""
     private var onRmsUpdate: ((Float) -> Unit)? = null
     private var onResultCallback: ((SpeechEvaluationResult) -> Unit)? = null
     private var onStateChangeCallback: ((SpeechState) -> Unit)? = null
     private var onErrorCallback: ((String) -> Unit)? = null
+
+    // Conversation callbacks
+    private var onPartialTranscriptCallback: ((String) -> Unit)? = null
+    private var onFinalTranscriptCallback: ((String) -> Unit)? = null
+
+    // Teacher TTS speaking state callback + queued Marathi follow-up
+    private var onSpeakingStateChanged: ((Boolean) -> Unit)? = null
+    private var pendingMarathiUtterance: String? = null
+    private var pendingSlowMode: Boolean = false
 
     init {
         initTts()
@@ -45,7 +65,41 @@ class SpeechManager(private val context: Context) : RecognitionListener {
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     textToSpeech?.setLanguage(Locale.getDefault())
                 }
-                textToSpeech?.setPitch(1.15f) // Slightly higher friendly pitch for kids
+                val marathiStatus = textToSpeech?.isLanguageAvailable(Locale("mr", "IN"))
+                    ?: TextToSpeech.LANG_NOT_SUPPORTED
+                isMarathiTtsSupported = marathiStatus >= TextToSpeech.LANG_AVAILABLE
+
+                textToSpeech?.setPitch(1.12f)
+                textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        mainHandler.post { onSpeakingStateChanged?.invoke(true) }
+                    }
+
+                    override fun onDone(utteranceId: String?) {
+                        if (utteranceId == UTTERANCE_TEACHER_EN && !pendingMarathiUtterance.isNullOrBlank()) {
+                            val marathiText = pendingMarathiUtterance
+                            pendingMarathiUtterance = null
+                            if (!marathiText.isNullOrBlank() && isMarathiTtsSupported) {
+                                mainHandler.post {
+                                    speakMarathiSegment(marathiText, pendingSlowMode)
+                                }
+                                return
+                            }
+                        }
+                        mainHandler.post { onSpeakingStateChanged?.invoke(false) }
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        pendingMarathiUtterance = null
+                        mainHandler.post { onSpeakingStateChanged?.invoke(false) }
+                    }
+
+                    override fun onError(utteranceId: String?, errorCode: Int) {
+                        pendingMarathiUtterance = null
+                        mainHandler.post { onSpeakingStateChanged?.invoke(false) }
+                    }
+                })
                 isTtsReady = true
             } else {
                 Log.e("SpeechManager", "TTS initialization failed")
@@ -54,14 +108,61 @@ class SpeechManager(private val context: Context) : RecognitionListener {
     }
 
     fun speak(text: String, isSlow: Boolean = false) {
-        if (!isTtsReady || textToSpeech == null) return
-        val speechRate = if (isSlow) 0.65f else 0.88f // Calm & clear speed for kids
+        if (!isTtsReady || textToSpeech == null || text.isBlank()) return
+        pendingMarathiUtterance = null
+        textToSpeech?.language = Locale.US
+        textToSpeech?.setPitch(1.15f)
+        val speechRate = if (isSlow) 0.65f else 0.88f
         textToSpeech?.setSpeechRate(speechRate)
         textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "KIDS_TTS_${System.currentTimeMillis()}")
     }
 
+    fun speakTeacherResponse(
+        englishText: String,
+        marathiText: String = "",
+        isSlow: Boolean = false,
+        speakMarathiAlso: Boolean = true,
+        onSpeakingChanged: (Boolean) -> Unit = {}
+    ) {
+        if (!isTtsReady || textToSpeech == null) {
+            onSpeakingChanged(false)
+            return
+        }
+        onSpeakingStateChanged = onSpeakingChanged
+        pendingSlowMode = isSlow
+        pendingMarathiUtterance = if (speakMarathiAlso && isMarathiTtsSupported && marathiText.isNotBlank()) {
+            marathiText
+        } else {
+            null
+        }
+
+        val cleanEnglish = englishText.trim()
+        if (cleanEnglish.isNotEmpty()) {
+            textToSpeech?.language = Locale.US
+            textToSpeech?.setPitch(1.12f)
+            textToSpeech?.setSpeechRate(if (isSlow) 0.68f else 0.88f)
+            textToSpeech?.speak(cleanEnglish, TextToSpeech.QUEUE_FLUSH, null, UTTERANCE_TEACHER_EN)
+        } else if (!pendingMarathiUtterance.isNullOrBlank()) {
+            val mr = pendingMarathiUtterance!!
+            pendingMarathiUtterance = null
+            speakMarathiSegment(mr, isSlow)
+        } else {
+            onSpeakingChanged(false)
+        }
+    }
+
+    private fun speakMarathiSegment(marathiText: String, isSlow: Boolean) {
+        val tts = textToSpeech ?: return
+        tts.language = Locale("mr", "IN")
+        tts.setPitch(1.08f)
+        tts.setSpeechRate(if (isSlow) 0.75f else 0.92f)
+        tts.speak(marathiText, TextToSpeech.QUEUE_FLUSH, null, UTTERANCE_TEACHER_MR)
+    }
+
     fun stopSpeaking() {
+        pendingMarathiUtterance = null
         textToSpeech?.stop()
+        mainHandler.post { onSpeakingStateChanged?.invoke(false) }
     }
 
     fun isSpeechRecognitionAvailable(): Boolean {
@@ -75,12 +176,40 @@ class SpeechManager(private val context: Context) : RecognitionListener {
         onResult: (SpeechEvaluationResult) -> Unit,
         onError: (String) -> Unit
     ) {
+        activeListenMode = ListenMode.WORD_EVALUATION
         currentTargetWord = targetWord
         this.onRmsUpdate = onRmsChanged
         this.onStateChangeCallback = onStateChange
         this.onResultCallback = onResult
         this.onErrorCallback = onError
+        this.onPartialTranscriptCallback = null
+        this.onFinalTranscriptCallback = null
 
+        beginRecognitionSession(languageTag = "en-US")
+    }
+
+    fun startConversationalListening(
+        languageTag: String = "en-IN",
+        onRmsChanged: (Float) -> Unit,
+        onStateChange: (SpeechState) -> Unit,
+        onPartialText: (String) -> Unit,
+        onFinalText: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        stopSpeaking()
+        activeListenMode = ListenMode.CONVERSATION
+        currentTargetWord = ""
+        this.onRmsUpdate = onRmsChanged
+        this.onStateChangeCallback = onStateChange
+        this.onResultCallback = null
+        this.onErrorCallback = onError
+        this.onPartialTranscriptCallback = onPartialText
+        this.onFinalTranscriptCallback = onFinalText
+
+        beginRecognitionSession(languageTag = languageTag)
+    }
+
+    private fun beginRecognitionSession(languageTag: String) {
         stopListening()
 
         try {
@@ -90,8 +219,8 @@ class SpeechManager(private val context: Context) : RecognitionListener {
 
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-US")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languageTag)
                 putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
@@ -121,6 +250,7 @@ class SpeechManager(private val context: Context) : RecognitionListener {
 
     fun destroy() {
         stopListening()
+        pendingMarathiUtterance = null
         textToSpeech?.stop()
         textToSpeech?.shutdown()
         textToSpeech = null
@@ -162,6 +292,17 @@ class SpeechManager(private val context: Context) : RecognitionListener {
 
     override fun onResults(results: Bundle?) {
         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: arrayListOf()
+        if (activeListenMode == ListenMode.CONVERSATION) {
+            val spoken = matches.firstOrNull()?.trim().orEmpty()
+            onStateChangeCallback?.invoke(SpeechState.IDLE)
+            if (spoken.isNotEmpty()) {
+                onFinalTranscriptCallback?.invoke(spoken)
+            } else {
+                onErrorCallback?.invoke("काही ऐकू आले नाही, पुन्हा स्पष्ट बोला!")
+            }
+            return
+        }
+
         val evaluation = evaluateChildPronunciation(currentTargetWord, matches)
         onStateChangeCallback?.invoke(if (evaluation.isSuccess) SpeechState.SUCCESS else SpeechState.IDLE)
         onResultCallback?.invoke(evaluation)
@@ -171,8 +312,14 @@ class SpeechManager(private val context: Context) : RecognitionListener {
         val partialMatches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         if (!partialMatches.isNullOrEmpty()) {
             val candidate = partialMatches[0].trim()
+            if (activeListenMode == ListenMode.CONVERSATION) {
+                if (candidate.isNotEmpty()) {
+                    onPartialTranscriptCallback?.invoke(candidate)
+                }
+                return
+            }
+
             if (candidate.equals(currentTargetWord, ignoreCase = true)) {
-                // Early exact match!
                 stopListening()
                 val evaluation = evaluateChildPronunciation(currentTargetWord, listOf(candidate))
                 onStateChangeCallback?.invoke(SpeechState.SUCCESS)
@@ -264,12 +411,11 @@ class SpeechManager(private val context: Context) : RecognitionListener {
         return str.lowercase(Locale.ROOT)
             .replace(Regex("[^a-z0-9\\s]"), "")
             .trim()
-            .replace("ph", "f") // Elephant / Elefant
-            .replace("ck", "k") // Duck / Duk
+            .replace("ph", "f")
+            .replace("ck", "k")
     }
 
     private fun calculateMatchScore(target: String, spoken: String): Int {
-        // Direct equal or spoken contains target (e.g. "it's a lion" -> target "lion")
         if (spoken == target) return 100
         val tokens = spoken.split("\\s+".toRegex())
         if (tokens.contains(target)) return 95
@@ -300,12 +446,17 @@ class SpeechManager(private val context: Context) : RecognitionListener {
             for (j in 1..s2.length) {
                 val cost = if (s1[i - 1] == s2[j - 1]) 0 else 1
                 dp[i][j] = minOf(
-                    dp[i - 1][j] + 1,      // deletion
-                    dp[i][j - 1] + 1,      // insertion
-                    dp[i - 1][j - 1] + cost // substitution
+                    dp[i - 1][j] + 1,
+                    dp[i][j - 1] + 1,
+                    dp[i - 1][j - 1] + cost
                 )
             }
         }
         return dp[s1.length][s2.length]
+    }
+
+    companion object {
+        private const val UTTERANCE_TEACHER_EN = "TEACHER_EN_UTTERANCE"
+        private const val UTTERANCE_TEACHER_MR = "TEACHER_MR_UTTERANCE"
     }
 }

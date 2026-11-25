@@ -1,18 +1,17 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Mic
-import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -40,9 +39,9 @@ data class NavTab(
 
 val NavTabs = listOf(
     NavTab(ScreenRoute.HOME, "मुख्य", Icons.Filled.Home, Icons.Outlined.Home, "nav_home"),
+    NavTab(ScreenRoute.AI_TEACHER, "AI टीचर", Icons.Filled.School, Icons.Outlined.School, "nav_ai_teacher"),
     NavTab(ScreenRoute.SPEAK_PRACTICE, "सराव", Icons.Filled.Mic, Icons.Outlined.Mic, "nav_speak"),
     NavTab(ScreenRoute.PICTURE_QUIZ, "खेळ", Icons.Filled.SportsEsports, Icons.Outlined.SportsEsports, "nav_games"),
-    NavTab(ScreenRoute.WORD_VAULT, "शब्द", Icons.Filled.MenuBook, Icons.Outlined.MenuBook, "nav_vault"),
     NavTab(ScreenRoute.TROPHIES, "बक्षिसे", Icons.Filled.EmojiEvents, Icons.Outlined.EmojiEvents, "nav_trophies")
 )
 
@@ -79,7 +78,7 @@ fun AppBottomNav(
                         text = tab.titleMarathi,
                         fontFamily = BalooFontFamily,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 12.sp
+                        fontSize = 11.sp
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(

@@ -99,6 +99,7 @@ fun AppTopBar(
 
                 Text(
                     text = if (currentScreen == ScreenRoute.HOME) "बोल इंग्लिश" else when (currentScreen) {
+                        ScreenRoute.AI_TEACHER -> "मीरा AI टीचर"
                         ScreenRoute.SPEAK_PRACTICE -> "उच्चार सराव"
                         ScreenRoute.PICTURE_QUIZ -> "चित्र क्विझ"
                         ScreenRoute.LISTEN_FIND -> "ऐका आणि शोधा"
