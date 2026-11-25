@@ -15,6 +15,8 @@ import com.example.model.WordCategory
 import com.example.model.WordItem
 import com.example.speech.SpeechManager
 import com.example.speech.SpeechState
+import com.example.update.AppUpdateManager
+import com.example.update.UpdateUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +31,14 @@ data class LetterBubble(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val speechManager = SpeechManager(application.applicationContext)
+    private val appUpdateManager = AppUpdateManager(application.applicationContext)
+
+    // Auto-update state
+    private val _updateState = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
+    val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
+
+    val currentAppVersion: String
+        get() = appUpdateManager.getCurrentVersionName()
 
     // Navigation
     private val _currentScreen = MutableStateFlow(ScreenRoute.HOME)
@@ -116,6 +126,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         setupWordBuilder()
+        checkForAppUpdate(isManual = false)
+    }
+
+    fun checkForAppUpdate(isManual: Boolean = true) {
+        if (_updateState.value is UpdateUiState.Checking) return
+        if (isManual) {
+            _updateState.value = UpdateUiState.Checking
+        }
+        viewModelScope.launch {
+            _updateState.value = appUpdateManager.checkForLatestRelease(isManual = isManual)
+        }
+    }
+
+    fun showUpdateDialog() {
+        val current = _updateState.value
+        if (current is UpdateUiState.UpdateAvailable) {
+            _updateState.value = current.copy(showDialog = true)
+        }
+    }
+
+    fun dismissUpdateDialog(rememberDismissal: Boolean = true) {
+        val current = _updateState.value
+        if (current is UpdateUiState.UpdateAvailable) {
+            if (rememberDismissal) {
+                appUpdateManager.markTagDismissed(current.release.tagName)
+            }
+            _updateState.value = current.copy(showDialog = false)
+        }
+    }
+
+    fun openUpdateDownloadUrl() {
+        val current = _updateState.value
+        if (current is UpdateUiState.UpdateAvailable) {
+            appUpdateManager.openExternalUrl(current.release.downloadUrl)
+        }
+    }
+
+    fun openReleasePageUrl() {
+        val current = _updateState.value
+        if (current is UpdateUiState.UpdateAvailable) {
+            appUpdateManager.openExternalUrl(current.release.releasePageUrl)
+        }
     }
 
     fun navigateTo(route: ScreenRoute) {

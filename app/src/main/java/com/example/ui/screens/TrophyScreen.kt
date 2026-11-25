@@ -26,13 +26,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -63,6 +66,7 @@ import com.example.ui.theme.FredokaFontFamily
 import com.example.ui.theme.OrangeFun
 import com.example.ui.theme.SkyBluePrimary
 import com.example.ui.theme.StarGold
+import com.example.update.UpdateUiState
 import com.example.viewmodel.MainViewModel
 
 @Composable
@@ -71,6 +75,7 @@ fun TrophyScreen(
     modifier: Modifier = Modifier
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
     val badges = viewModel.getAllBadges()
 
     var showNameDialog by remember { mutableStateOf(false) }
@@ -273,6 +278,169 @@ fun TrophyScreen(
                     color = Color(0xFF5D4037),
                     textAlign = TextAlign.Center
                 )
+            }
+        }
+
+        // App Auto-Update Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("app_update_card"),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFE3F2FD)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = "ॲप अपडेट",
+                                tint = SkyBluePrimary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "ॲप अपडेट (App Updates)",
+                                fontFamily = BalooFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "सध्याचे व्हर्जन: v${viewModel.currentAppVersion}",
+                                fontFamily = FredokaFontFamily,
+                                fontSize = 13.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+
+                when (val state = updateState) {
+                    is UpdateUiState.Checking -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = SkyBluePrimary
+                            )
+                            Text(
+                                text = "नवीन रिलीझ तपासत आहे…",
+                                fontFamily = BalooFontFamily,
+                                fontSize = 14.sp,
+                                color = SkyBluePrimary
+                            )
+                        }
+                    }
+
+                    is UpdateUiState.UpdateAvailable -> {
+                        Text(
+                            text = "🚀 नवीन रिलीझ (${state.release.displayVersion}) उपलब्ध आहे!",
+                            fontFamily = BalooFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = CorrectGreen
+                        )
+                        Button(
+                            onClick = { viewModel.showUpdateDialog() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("btn_open_update_dialog"),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = CorrectGreen)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SystemUpdate,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "अपडेट पहा आणि डाउनलोड करा",
+                                fontFamily = BalooFontFamily,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+
+                    is UpdateUiState.UpToDate -> {
+                        Text(
+                            text = "✔️ तुमचे ॲप नवीनतम व्हर्जनवर आहे!",
+                            fontFamily = BalooFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = CorrectGreen
+                        )
+                    }
+
+                    is UpdateUiState.Error -> {
+                        Text(
+                            text = state.message,
+                            fontFamily = BalooFontFamily,
+                            fontSize = 13.sp,
+                            color = OrangeFun
+                        )
+                    }
+
+                    UpdateUiState.Idle -> {
+                        Text(
+                            text = "ॲप सुरू होताच नवीन रिलीझ आपोआप तपासले जाते.",
+                            fontFamily = BalooFontFamily,
+                            fontSize = 13.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = { viewModel.checkForAppUpdate(isManual = true) },
+                    enabled = updateState !is UpdateUiState.Checking,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("btn_check_updates"),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SkyBluePrimary)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "नवीन अपडेट तपासा (Check for Updates)",
+                        fontFamily = BalooFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
 

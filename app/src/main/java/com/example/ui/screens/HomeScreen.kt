@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,6 +55,7 @@ import com.example.ui.theme.OrangeFun
 import com.example.ui.theme.PurpleFun
 import com.example.ui.theme.SkyBluePrimary
 import com.example.ui.theme.SunnyYellow
+import com.example.update.UpdateUiState
 import com.example.viewmodel.MainViewModel
 
 @Composable
@@ -62,6 +64,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
     val dailyWord = VocabularyRepository.allWords[1] // Elephant
 
     LazyColumn(
@@ -71,6 +74,70 @@ fun HomeScreen(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
+        val availableUpdate = updateState as? UpdateUiState.UpdateAvailable
+        if (availableUpdate != null) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.showUpdateDialog() }
+                        .testTag("home_update_banner"),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(KiwiGreen),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = "नवीन अपडेट",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "🚀 नवीन अपडेट उपलब्ध (${availableUpdate.release.displayVersion})",
+                                    fontFamily = BalooFontFamily,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color(0xFF1B5E20)
+                                )
+                                Text(
+                                    text = "डाउनलोड करण्यासाठी येथे टॅप करा",
+                                    fontFamily = BalooFontFamily,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = "अपडेट पहा",
+                            tint = KiwiGreen
+                        )
+                    }
+                }
+            }
+        }
         // Welcome Banner
         item {
             Card(

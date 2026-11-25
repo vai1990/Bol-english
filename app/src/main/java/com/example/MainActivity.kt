@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.model.ScreenRoute
 import com.example.ui.components.AppBottomNav
 import com.example.ui.components.AppTopBar
+import com.example.ui.components.UpdateReleaseDialog
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.ListenQuizScreen
 import com.example.ui.screens.PictureQuizScreen
@@ -27,6 +28,7 @@ import com.example.ui.screens.TrophyScreen
 import com.example.ui.screens.WordBuilderScreen
 import com.example.ui.screens.WordVaultScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.update.UpdateUiState
 import com.example.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
@@ -47,6 +49,7 @@ fun KidsEnglishApp(
 ) {
     val currentScreen by viewModel.currentScreen.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
 
     // Handle Android system back press to return to Home screen
     BackHandler(enabled = currentScreen != ScreenRoute.HOME) {
@@ -88,5 +91,23 @@ fun KidsEnglishApp(
                 }
             }
         }
+    }
+
+    val availableUpdate = updateState as? UpdateUiState.UpdateAvailable
+    if (availableUpdate != null && availableUpdate.showDialog) {
+        UpdateReleaseDialog(
+            release = availableUpdate.release,
+            currentVersion = availableUpdate.currentVersion,
+            onDownloadClick = {
+                viewModel.openUpdateDownloadUrl()
+                viewModel.dismissUpdateDialog(rememberDismissal = false)
+            },
+            onViewReleaseClick = {
+                viewModel.openReleasePageUrl()
+            },
+            onDismissClick = {
+                viewModel.dismissUpdateDialog(rememberDismissal = true)
+            }
+        )
     }
 }

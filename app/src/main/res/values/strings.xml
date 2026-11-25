@@ -10,4 +10,11 @@
     <string name="listening">ऐकत आहे… बोला!</string>
     <string name="mic_permission_needed">उच्चार तपासण्यासाठी मायक्रोफोन परवानगी आवश्यक आहे.</string>
     <string name="grant_permission">परवानगी द्या</string>
+    <string name="update_available_title">नवीन अपडेट उपलब्ध!</string>
+    <string name="download_update">अपडेट डाउनलोड करा (Download)</string>
+    <string name="view_release_notes">रिलीझ पान</string>
+    <string name="update_later">नंतर</string>
+    <string name="check_for_updates">अपडेट तपासा (Check Updates)</string>
+    <string name="checking_updates">नवीन रिलीझ तपासत आहे…</string>
+    <string name="app_up_to_date">तुमचे ॲप अपडेटेड आहे!</string>
 </resources>
